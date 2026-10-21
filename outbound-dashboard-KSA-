@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Warehouse Performance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --bg:#0b1020;--panel:#141d32;--line:#293957;--white:#f4f7ff;
+  --muted:#aab8d0;--cyan:#35d7d0;--yellow:#c6f36b;--purple:#b68cff;
+  --orange:#ffad66;--red:#ff718b;--track:#273550;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 10px;
+  background: radial-gradient(ellipse at top left,#172b49 0%,#0b1020 55%,#090d18 100%);
+  color: var(--white); font: 14px Arial, Helvetica, sans-serif;
+}
+main {
+  max-width: 1600px; margin: auto; background: rgba(12,18,33,.76);
+  padding: 22px 24px; border: 1px solid #263653; border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.28);
+}
+.upload-bar {
+  background: #17233a; border: 1px dashed var(--cyan);
+  padding: 12px 16px; border-radius: 12px; margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.upload-bar label { color: var(--cyan); font-weight: bold; cursor: pointer; }
+.upload-bar input[type="file"] { color: var(--muted); }
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 10px; }
+.eyebrow { color: #aab1c1; font-size: 12px; letter-spacing: .8px; }
+.title { font: 400 clamp(28px,3vw,42px) Arial, sans-serif; margin: 10px 0 6px; }
+.sub { color: var(--muted); font-size: 13px; }
+.achievement { text-align: right; min-width: 190px; }
+.achievement strong { font-size: clamp(34px,4vw,52px); color: var(--cyan); display: block; line-height: 1.1; font-weight: 400; }
+.achievement span { font-size: 11px; color: var(--muted); }
+.kpis { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; margin: 20px 0 26px; }
+.kpi { background: linear-gradient(145deg,rgba(35,51,79,.82),rgba(19,29,49,.82)); border: 1px solid #2a3b5a; border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.kpi strong { font: 400 30px Arial, sans-serif; display: block; margin-bottom: 10px; }
+.kpi:nth-child(1) strong { color: white; }
+.kpi:nth-child(2) strong { color: #54d68a; }
+.kpi:nth-child(3) strong { color: var(--cyan); }
+.kpi:nth-child(4) strong { color: var(--yellow); }
+.kpi:nth-child(5) strong { color: var(--orange); }
+.kpi span { font-size: 12px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: 1.7fr .8fr; gap: 28px; }
+.panel { background: rgba(20,29,50,.62); border: 1px solid #293957; border-radius: 16px; padding: 18px 16px; min-width: 0; }
+.panel h2 { font: 400 18px Arial, sans-serif; margin: 0 0 8px; }
+.muted { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.staffgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 22px; }
+.barrow { display: grid; grid-template-columns: 105px minmax(20px,1fr) 48px; gap: 9px; align-items: center; margin: 13px 0; font-size: 11px; }
+.track { height: 14px; background: var(--track); border-radius: 8px; overflow: hidden; }
+.bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg,#c6f36b,#35d7d0); }
+.bar.mid { background: linear-gradient(90deg,#ffad66,#ff8a7a); }
+.bar.low { background: linear-gradient(90deg,#ff718b,#b68cff); }
+.percent { text-align: right; font-weight: 400; font-size: 11px; color: #e9edf6; }
+.rightcol { display: grid; gap: 20px; align-content: start; }
+.taskrow { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; margin: 17px 0; color: #f0f4ff; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.taskstats { margin-top: 24px; border-top: 1px solid #1d2430; padding-top: 8px; }
+.taskstats div { display: flex; justify-content: space-between; padding: 10px 0; font-size: 12px; }
+.donut { width: 220px; height: 220px; border-radius: 50%; background: conic-gradient(var(--yellow) 0 33.3%,var(--cyan) 33.3% 66.6%,var(--purple) 66.6% 100%); position: relative; margin: 22px auto; }
+.donut:after { content: ""; position: absolute; inset: 43px; background: #17233a; border-radius: 50%; }
+.tablepanel { margin-top: 22px; }
+.tablewrap { overflow: auto; border: 1px solid #2a3b5a; border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 950px; background: #111a2c; }
+th,td { text-align: left; padding: 11px 10px; border-bottom: 1px solid #1d2430; white-space: nowrap; }
+th { background: #1d2b46; color: #dce7ff; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; font-weight: 500; }
+td { font-size: 12px; color: #e8ebf1; }
+tbody tr:hover { background: #1a2943; }
+.foot { font-size: 10px; color: #778092; border-top: 1px solid #1d2430; margin-top: 20px; padding-top: 12px; }
+@media(max-width:850px){
+  body{padding:4px} main{padding:10px} .head{flex-direction:column}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+  .grid,.staffgrid{grid-template-columns:1fr} .donut{width:155px;height:155px} .donut:after{inset:30px}
+}
+</style>
+</head>
+<body>
+<main>
+  <!-- Daily Upload Section -->
+  <div class="upload-bar">
+    <div>
+      <label for="csvFileInput"> Upload Daily Data (CSV):</label>
+      <input type="file" id="csvFileInput" accept=".csv">
+    </div>
+    <span class="muted">Upload your daily CSV export to instantly refresh the dashboard figures.</span>
+  </div>
+
+  <header class="head">
+    <div>
+      <div class="eyebrow">DAILY OPERATIONS · WAREHOUSE (OUTBOUND) SHIFT PERFORMANCE</div>
+      <div class="title">Performance Dashboard</div>
+      <div class="sub">Picking, Sorting & Packing &nbsp;•&nbsp; Staff-wise item details</div>
+    </div>
+    <div class="achievement">
+      <strong id="totalItems">—</strong>
+      <span>TOTAL ITEMS PROCESSED</span>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi"><strong id="totalItemsKpi">—</strong><span>Total Items Processed</span></div>
+    <div class="kpi"><strong id="staffCount">0</strong><span>Staff Records</span></div>
+    <div class="kpi"><strong id="pickTotal">—</strong><span>Picking Items</span></div>
+    <div class="kpi"><strong id="sortTotal">—</strong><span>Sorting Items</span></div>
+    <div class="kpi"><strong id="packTotal">—</strong><span>Packing Items</span></div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Staff Performance — Total Items per Staff</h2>
+      <div class="muted">Bars compare total picked + sorted + packed items per staff.</div>
+      <div class="staffgrid">
+        <div id="staffBarsA"></div>
+        <div id="staffBarsB"></div>
+      </div>
+    </div>
+    <div class="rightcol">
+      <div class="panel">
+        <h2>Task Volume Share</h2>
+        <div class="donut"></div>
+        <div id="taskBreakdown"></div>
+      </div>
+      <div class="panel">
+        <h2>Task Volume</h2>
+        <div class="taskstats">
+          <div><span>Picking Items</span><b id="pickTotal2">—</b></div>
+          <div><span>Sorting Items</span><b id="sortTotal2">—</b></div>
+          <div><span>Packing Items</span><b id="packTotal2">—</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel tablepanel">
+    <h2>Staff Detail</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User ID</th><th>Staff Name</th>
+            <th>Zone Pick Orders</th><th>Zone Pick Items</th>
+            <th>Normal Pick Orders</th><th>Normal Pick Items</th>
+            <th>Sorter Orders</th><th>Sorter Items</th>
+            <th>Packing Orders</th><th>Packing Items</th>
+            <th>Total Items</th>
+          </tr>
+        </thead>
+        <tbody id="staffTable"></tbody>
+      </table>
+    </div>
+  </section>
+  <div class="foot">METHOD: Picking items + sorting items + packing items = total recorded item volume.</div>
+</main>
+
+<script>
+// Default Data
+let staffData = [
+  ["MZWKSA007","HAKIMUL",13,105,10,18,79,144,0,0],
+  ["MZWKSA007","MAHAFUZ",7,354,4,8,148,255,0,0],
+  ["MZWKSA007","MAMON",10,191,8,31,184,317,0,0],
+  ["MZWKSA007","ROMAN",9,191,2,14,179,295,0,0],
+  ["MZWKSA007","SAMI",13,360,21,49,141,246,0,0],
+  ["MZWKSA007","SOFLUK",6,84,0,0,134,181,0,0],
+  ["MZWKSA009","ARSLAN",13,251,21,52,66,122,14,27],
+  ["MZWKSA009","NIJAM",1,1,0,0,0,0,0,0],
+  ["MZWKSA009","SAHIN",3,18,2,14,52,97,151,510],
+  ["MZWKSA011","SHAFIQ",4,122,7,15,30,40,0,0],
+  ["MZWKSA012","JAKIR",0,0,0,0,16,20,0,0],
+  ["MZWKSA013","JUBAYER1",1,22,0,0,1,3,0,0],
+  ["MZWKSA013","MAHAFUZ",2,89,0,0,0,0,0,0],
+  ["MZWKSA013","SHAHADAT.1",11,138,14,36,67,99,0,0],
+  ["MZWKSA014","SHISHIR",5,9,6,15,28,40,86,184],
+  ["MZWKSA015","AKRAM",12,46,5,9,1,1,0,0],
+  ["MZWKSA015","AZIZUR",7,14,0,0,0,0,0,0],
+  ["MZWKSA018","SUMON",0,0,27,65,8,8,0,0],
+  ["MZWKSA002","AYON",0,0,0,0,0,0,2,3],
+  ["MZWKSA002","ARMAN",0,0,0,0,26,72,37,86],
+  ["MZWKSA002","JUBAYER",0,0,0,0,21,28,120,289],
+  ["MZWKSA002","MEHEDI",1,6,0,0,9,9,235,584],
+  ["MZWKSA002","BALLAL",0,0,0,0,10,16,209,637]
+];
+
+function processStaffData(rawRows) {
+  return rawRows.map(r => ({
+    id: r[0] || '',
+    name: r[1] || '',
+    zo: Number(r[2]) || 0,
+    zi: Number(r[3]) || 0,
+    no: Number(r[4]) || 0,
+    ni: Number(r[5]) || 0,
+    so: Number(r[6]) || 0,
+    si: Number(r[7]) || 0,
+    po: Number(r[8]) || 0,
+    pi: Number(r[9]) || 0,
+    get pick() { return this.zi + this.ni; },
+    get sort() { return this.si; },
+    get pack() { return this.pi; },
+    get total() { return this.zi + this.ni + this.si + this.pi; }
+  }));
+}
+
+function updateDashboard(rawArray) {
+  const staff = processStaffData(rawArray);
+  const sum = k => staff.reduce((a, s) => a + s[k], 0);
+  const fmt = n => n.toLocaleString("en-US");
+
+  const pick = sum("zi") + sum("ni");
+  const sorting = sum("si");
+  const packing = sum("pi");
+  const grand = pick + sorting + packing;
+
+  document.getElementById("staffCount").textContent = staff.length;
+  document.getElementById("totalItems").textContent = fmt(grand);
+  document.getElementById("totalItemsKpi").textContent = fmt(grand);
+  document.getElementById("pickTotal").textContent = fmt(pick);
+  document.getElementById("sortTotal").textContent = fmt(sorting);
+  document.getElementById("packTotal").textContent = fmt(packing);
+  document.getElementById("pickTotal2").textContent = fmt(pick);
+  document.getElementById("sortTotal2").textContent = fmt(sorting);
+  document.getElementById("packTotal2").textContent = fmt(packing);
+
+  const max = Math.max(...staff.map(s => s.total), 1);
+  function bar(s) {
+    const cls = s.total > max * .65 ? "" : s.total > max * .35 ? "mid" : "low";
+    return `<div class="barrow"><span>${s.name}</span><div class="track"><div class="bar ${cls}" style="width:${Math.max(1, s.total / max * 100)}%"></div></div><span class="percent">${fmt(s.total)}</span></div>`;
+  }
+
+  const half = Math.ceil(staff.length / 2);
+  document.getElementById("staffBarsA").innerHTML = staff.slice(0, half).map(bar).join("");
+  document.getElementById("staffBarsB").innerHTML = staff.slice(half).map(bar).join("");
+
+  const tasks = [["Picking", pick, "#ffdf4b"], ["Sorting", sorting, "#25e1e8"], ["Packing", packing, "#9bc7ff"]];
+  document.getElementById("taskBreakdown").innerHTML = tasks.map(t =>
+    `<div class="taskrow"><span class="dot" style="background:${t[2]}"></span><span>${t[0]}</span><strong>${grand ? Math.round(t[1] / grand * 1000) / 10 : 0}%</strong></div>`
+  ).join("");
+
+  document.querySelector(".donut").style.background = `conic-gradient(#c6f36b 0 ${grand ? pick / grand * 100 : 0}%,#35d7d0 ${grand ? pick / grand * 100 : 0}% ${grand ? (pick + sorting) / grand * 100 : 0}%,#b68cff ${grand ? (pick + sorting) / grand * 100 : 0}% 100%)`;
+
+  document.getElementById("staffTable").innerHTML = staff.map(s =>
+    `<tr><td>${s.id}</td><td><b>${s.name}</b></td><td>${fmt(s.zo)}</td><td>${fmt(s.zi)}</td><td>${fmt(s.no)}</td><td>${fmt(s.ni)}</td><td>${fmt(s.so)}</td><td>${fmt(s.si)}</td><td>${fmt(s.po)}</td><td>${fmt(s.pi)}</td><td><b>${fmt(s.total)}</b></td></tr>`
+  ).join("");
+}
+
+// Handle Uploaded File
+document.getElementById('csvFileInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  Papa.parse(file, {
+    skipEmptyLines: true,
+    complete: function (results) {
+      // Filter out header row if headers exist
+      let data = results.data;
+      if (data.length > 0 && isNaN(Number(data[0][2]))) {
+        data.shift();
+      }
+      updateDashboard(data);
+    }
+  });
+});
+
+// Initial Render
+updateDashboard(staffData);
+</script>
+</body>
+</html>
